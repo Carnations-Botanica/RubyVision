@@ -29,8 +29,11 @@ Temporary Items
 
 # Kext Development related files
 .vscode/c_cpp_properties.json
-.vscode/launch.json
 .vscode/settings.json
+.vscode/launch.json
+build-universal.sh
+build-x86_64.sh
+build-i386.sh
 DerivedData
 xcuserdata
 build
