@@ -34,8 +34,8 @@
 #define MODULE_INFO "INFO"
 #define MODULE_CUTE "\u2665"
 
-#define MODULE_ATIDBG "ATIDBG"
-#define MODULE_AMDDBG "AMDDBG"
+#define ATIDBG "ATIDBG"
+#define AMDDBG "AMDDBG"
 
 // Root/Parent Class
 class RUBY {
