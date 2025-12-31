@@ -6,17 +6,16 @@
 //
 
 #include "kern_start.hpp"
-#include "AtiDbg2000.hpp"
-#include "AtiDbg5000.hpp"
-#include "AtiDbgSupport.hpp"
+#include "AtiSupport.hpp"
+#include "Ati5000.hpp"
 
 static RUBY rubyInstance;
 RUBY *RUBY::callbackRUBY;
 
 // Define and init various static member variables
+mach_vm_address_t RUBY::orgGetProperty = 0;
 int RUBY::darwinMajor = 0;
 int RUBY::darwinMinor = 0;
-mach_vm_address_t RUBY::orgGetProperty = 0;
 
 // To only be modified by CarnationsInternal, to display various Internal logs and headers
 const bool RUBY::IS_INTERNAL = false; // MUST CHANCE THIS TO FALSE BEFORE CREATING COMMITS
@@ -90,29 +89,28 @@ void RUBY::init() {
 
     } else if (RUBY::darwinMajor >= KernelVersion::Mavericks) {
         DBGLOG(MODULE_INIT, "Detected OS X Mavericks (10.9.x).");
-
+		lilu.onPatcherLoad(processKernel, nullptr);
+		
     } else if (RUBY::darwinMajor >= KernelVersion::MountainLion) {
         DBGLOG(MODULE_INIT, "Detected OS X Mountain Lion (10.8.x).");
         lilu.onPatcherLoad(processKernel, nullptr);
-        AtiDbgSupport::init();
-		AtiDbg5000::init();
         
     } else if (RUBY::darwinMajor >= KernelVersion::Lion) {
         DBGLOG(MODULE_INIT, "Detected OS X Lion (10.7.x).");
-		DBGLOG(MODULE_INIT, "Nothing to do!");
-
+		lilu.onPatcherLoad(processKernel, nullptr);
+		
     } else if (RUBY::darwinMajor >= KernelVersion::SnowLeopard) {
         DBGLOG(MODULE_INIT, "Detected OS X Snow Leopard (10.6.x).");
-		DBGLOG(MODULE_INIT, "Nothing to do!");
-
+		lilu.onPatcherLoad(processKernel, nullptr);
+		
     } else if (RUBY::darwinMajor >= KernelVersion::Leopard) {
         DBGLOG(MODULE_INIT, "Detected OS X Leopard (10.5.x).");
-        AtiDbg2000::init();
-
+		lilu.onPatcherLoad(processKernel, nullptr);
+		
     } else if (RUBY::darwinMajor >= KernelVersion::Tiger) {
         DBGLOG(MODULE_INIT, "Detected OS X Tiger (10.4.x).");
-        AtiDbg2000::init();
-
+		lilu.onPatcherLoad(processKernel, nullptr);
+		
     } else {
         // How the helly? you're on PPC or some shit?
         DBGLOG(MODULE_ERROR, "Detected an unsupported version of OS X / macOS.");
@@ -124,8 +122,8 @@ void RUBY::init() {
 
 // Global kernel hooks routine
 void RUBY::processKernel(void *user, KernelPatcher &patcher) {
-    DBGLOG(MODULE_SHORT, "Hooking various kernel functions for better debugging...");
-
+    DBGLOG(MODULE_SHORT, "Hooking various kernel functions for debugging...");
+    
     KernelPatcher::RouteRequest kernelRequests[] {
         { "__ZNK15IORegistryEntry11getPropertyEPKc", getProperty, orgGetProperty }
     };

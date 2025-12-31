@@ -64,11 +64,20 @@ private:
      * Private self instance for callbacks
      */
     static RUBY *callbackRUBY;
-    
-    static mach_vm_address_t orgGetProperty;
-    static void processKernel(void *user, KernelPatcher &patcher);
-    static OSObject* getProperty(void *that, const char *key);
 
+    /**
+     * Included procKern function for AtiDbg'ing
+     */
+    static void processKernel(void *user, KernelPatcher &patcher);
+
+    // AtiDbg has been consumed by the main routine, ensuring all versions
+    // are able to easily debug ATI/AMD related functions on the system.
+    // Trampolines
+    static mach_vm_address_t orgGetProperty;
+
+    // Reimplementations
+    static OSObject* getProperty(void *that, const char *key);
+    
 };
 
 #endif /* kern_start_h */
