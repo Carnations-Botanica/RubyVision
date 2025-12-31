@@ -31,11 +31,11 @@ Temporary Items
 .vscode/c_cpp_properties.json
 .vscode/settings.json
 .vscode/launch.json
-build-universal.sh
-build-x86_64.sh
-build-i386.sh
 DerivedData
 xcuserdata
+Research/
+clang32/
+Tools/
 build
 
 # Private Project Extensions (PEs)
