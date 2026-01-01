@@ -18,7 +18,8 @@ int RUBY::darwinMajor = 0;
 int RUBY::darwinMinor = 0;
 
 // To only be modified by CarnationsInternal, to display various Internal logs and headers
-const bool RUBY::IS_INTERNAL = false; // MUST CHANCE THIS TO FALSE BEFORE CREATING COMMITS
+// Software is currently in the experimental phase and shouldn't be used publically.
+const bool RUBY::IS_INTERNAL = true;
 
 // Main RUBY Routine function
 void RUBY::init() {
@@ -98,6 +99,8 @@ void RUBY::init() {
     } else if (RUBY::darwinMajor >= KernelVersion::Lion) {
         DBGLOG(MODULE_INIT, "Detected OS X Lion (10.7.x).");
 		lilu.onPatcherLoad(processKernel, nullptr);
+        Ati5000::init();
+        AtiSupport::init();
 		
     } else if (RUBY::darwinMajor >= KernelVersion::SnowLeopard) {
         DBGLOG(MODULE_INIT, "Detected OS X Snow Leopard (10.6.x).");
