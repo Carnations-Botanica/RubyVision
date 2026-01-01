@@ -34,6 +34,10 @@
 		FB5C288E2CFD5D0F00A3C58E /* plugin_start.hpp in Headers */ = {isa = PBXBuildFile; fileRef = F0B769772CFC43F800043DD0 /* plugin_start.hpp */; };
 		FB79531C2EFC36870048B98D /* libkmod.a in Frameworks */ = {isa = PBXBuildFile; fileRef = FB79531B2EFC367C0048B98D /* libkmod.a */; };
 		FB898C8E2CBBE85700927629 /* kern_start.cpp in Sources */ = {isa = PBXBuildFile; fileRef = FB898C8D2CBBE85700927629 /* kern_start.cpp */; };
+		FBB597342F06353700108CA5 /* AMD5000.cpp in Sources */ = {isa = PBXBuildFile; fileRef = FBB597332F06353700108CA5 /* AMD5000.cpp */; };
+		FBB597352F06353700108CA5 /* AMD5000.hpp in Headers */ = {isa = PBXBuildFile; fileRef = FBB597322F06353700108CA5 /* AMD5000.hpp */; };
+		FBB597382F06354200108CA5 /* AMDSupport.cpp in Sources */ = {isa = PBXBuildFile; fileRef = FBB597372F06354200108CA5 /* AMDSupport.cpp */; };
+		FBB597392F06354200108CA5 /* AMDSupport.hpp in Headers */ = {isa = PBXBuildFile; fileRef = FBB597362F06354200108CA5 /* AMDSupport.hpp */; };
 		FBCCC1552F00C81100BD9E94 /* Ati5000.hpp in Headers */ = {isa = PBXBuildFile; fileRef = FBCCC1532F00C81100BD9E94 /* Ati5000.hpp */; };
 		FBCCC1562F00C81100BD9E94 /* Ati5000.cpp in Sources */ = {isa = PBXBuildFile; fileRef = FBCCC1542F00C81100BD9E94 /* Ati5000.cpp */; };
 		FBF226032F028A7700914642 /* AtiSupport.cpp in Sources */ = {isa = PBXBuildFile; fileRef = FBF226012F028A7600914642 /* AtiSupport.cpp */; };
@@ -84,6 +88,10 @@
 		FB898C8A2CBBE85700927629 /* RubyVision.kext */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = RubyVision.kext; sourceTree = BUILT_PRODUCTS_DIR; };
 		FB898C8D2CBBE85700927629 /* kern_start.cpp */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; path = kern_start.cpp; sourceTree = "<group>"; };
 		FB898C8F2CBBE85700927629 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
+		FBB597322F06353700108CA5 /* AMD5000.hpp */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.h; path = AMD5000.hpp; sourceTree = "<group>"; };
+		FBB597332F06353700108CA5 /* AMD5000.cpp */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; path = AMD5000.cpp; sourceTree = "<group>"; };
+		FBB597362F06354200108CA5 /* AMDSupport.hpp */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.h; path = AMDSupport.hpp; sourceTree = "<group>"; };
+		FBB597372F06354200108CA5 /* AMDSupport.cpp */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; path = AMDSupport.cpp; sourceTree = "<group>"; };
 		FBCCC1532F00C81100BD9E94 /* Ati5000.hpp */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.h; path = Ati5000.hpp; sourceTree = "<group>"; };
 		FBCCC1542F00C81100BD9E94 /* Ati5000.cpp */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; path = Ati5000.cpp; sourceTree = "<group>"; };
 		FBF226012F028A7600914642 /* AtiSupport.cpp */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; path = AtiSupport.cpp; sourceTree = "<group>"; };
@@ -201,6 +209,10 @@
 				FBCCC1532F00C81100BD9E94 /* Ati5000.hpp */,
 				FBF226012F028A7600914642 /* AtiSupport.cpp */,
 				FBF226022F028A7700914642 /* AtiSupport.hpp */,
+				FBB597322F06353700108CA5 /* AMD5000.hpp */,
+				FBB597332F06353700108CA5 /* AMD5000.cpp */,
+				FBB597362F06354200108CA5 /* AMDSupport.hpp */,
+				FBB597372F06354200108CA5 /* AMDSupport.cpp */,
 			);
 			path = RubyVision;
 			sourceTree = "<group>";
@@ -231,6 +243,7 @@
 				FB5C287E2CFD5D0F00A3C58E /* kern_cpu.hpp in Headers */,
 				FB5C287F2CFD5D0F00A3C58E /* kern_crypto.hpp in Headers */,
 				FB5C28802CFD5D0F00A3C58E /* kern_devinfo.hpp in Headers */,
+				FBB597352F06353700108CA5 /* AMD5000.hpp in Headers */,
 				FBCCC1552F00C81100BD9E94 /* Ati5000.hpp in Headers */,
 				FB5C28812CFD5D0F00A3C58E /* kern_disasm.hpp in Headers */,
 				FB5C28822CFD5D0F00A3C58E /* kern_efi.hpp in Headers */,
@@ -242,6 +255,7 @@
 				FB5C28882CFD5D0F00A3C58E /* kern_policy.hpp in Headers */,
 				FBF226042F028A7700914642 /* AtiSupport.hpp in Headers */,
 				FB5C28892CFD5D0F00A3C58E /* kern_rtc.hpp in Headers */,
+				FBB597392F06354200108CA5 /* AMDSupport.hpp in Headers */,
 				FB5C288A2CFD5D0F00A3C58E /* kern_time.hpp in Headers */,
 				FB5C288B2CFD5D0F00A3C58E /* kern_user.hpp in Headers */,
 				FB5C288C2CFD5D0F00A3C58E /* kern_util.hpp in Headers */,
@@ -357,10 +371,12 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				FBB597382F06354200108CA5 /* AMDSupport.cpp in Sources */,
 				FBF226032F028A7700914642 /* AtiSupport.cpp in Sources */,
 				F0B769802CFC445C00043DD0 /* plugin_start.cpp in Sources */,
 				FB898C8E2CBBE85700927629 /* kern_start.cpp in Sources */,
 				FBCCC1562F00C81100BD9E94 /* Ati5000.cpp in Sources */,
+				FBB597342F06353700108CA5 /* AMD5000.cpp in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

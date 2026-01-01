@@ -6,7 +6,6 @@
 //
 
 #include "AtiSupport.hpp"
-#include <sys/proc.h>
 
 // Structure Definition
 struct ConnectorInfo {

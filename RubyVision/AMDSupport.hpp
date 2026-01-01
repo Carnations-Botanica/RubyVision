@@ -1,12 +1,12 @@
 //
-//  AtiSupport.hpp
+//  AMDSupport.hpp
 //  RubyVision
 //
-//  Created by RoyalGraphX on 12/29/25.
+//  Created by RoyalGraphX on 12/31/25.
 //
 
-#ifndef AtiSupport_h
-#define AtiSupport_h
+#ifndef AMDSupport_h
+#define AMDSupport_h
 
 // Base Includes
 #include <Headers/kern_patcher.hpp>
@@ -17,9 +17,9 @@
 #include "kern_start.hpp"
 
 // Logging Defs
-#define ATISUP "ATISU"
+#define AMDSUP "AMDSU"
 
-class AtiSupport {
+class AMDSupport {
 public:
     static void init();
     static void processKext(void *user, KernelPatcher &patcher, size_t index, mach_vm_address_t address, size_t size);
@@ -54,4 +54,4 @@ private:
 
 };
 
-#endif /* AtiSupport_h */
+#endif /* AMDSupport_h */

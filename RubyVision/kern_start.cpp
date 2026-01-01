@@ -6,8 +6,14 @@
 //
 
 #include "kern_start.hpp"
+
+// Lion
 #include "AtiSupport.hpp"
 #include "Ati5000.hpp"
+
+// Mountain Lion
+#include "AMDSupport.hpp"
+#include "AMD5000.hpp"
 
 static RUBY rubyInstance;
 RUBY *RUBY::callbackRUBY;
@@ -95,7 +101,9 @@ void RUBY::init() {
     } else if (RUBY::darwinMajor >= KernelVersion::MountainLion) {
         DBGLOG(MODULE_INIT, "Detected OS X Mountain Lion (10.8.x).");
         lilu.onPatcherLoad(processKernel, nullptr);
-        
+        AMD5000::init();
+        AMDSupport::init();
+
     } else if (RUBY::darwinMajor >= KernelVersion::Lion) {
         DBGLOG(MODULE_INIT, "Detected OS X Lion (10.7.x).");
 		lilu.onPatcherLoad(processKernel, nullptr);

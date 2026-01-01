@@ -1,21 +1,11 @@
 //
-//  Ati5000.cpp
+//  AMD5000.cpp
 //  RubyVision
 //
-//  Created by RoyalGraphX on 12/28/25.
+//  Created by RoyalGraphX on 12/31/25.
 //
 
-#include "Ati5000.hpp"
-
-// Initialize trampolines
-mach_vm_address_t Ati5000::orgGetDeviceId = 0;
-mach_vm_address_t Ati5000::orgReadATOMBIOS = 0;
-mach_vm_address_t Ati5000::orgReadEfiRom = 0;
-mach_vm_address_t Ati5000::orgReadVramRom = 0;
-mach_vm_address_t Ati5000::orgReadPciRom = 0;
-mach_vm_address_t Ati5000::orgReadRegRom = 0;
-mach_vm_address_t Ati5000::orgGetBIOSInfo = 0;
-mach_vm_address_t Ati5000::orgMapPCISubRange = 0;
+#include "AMD5000.hpp"
 
 // Internal structure helper based on ASM
 struct BiosContainer {
@@ -24,21 +14,30 @@ struct BiosContainer {
     // padding likely exists between 0 and 8 on 64-bit
 };
 
-// Define paths for targeted kexts
-static const char *pathATI5000Controller[] { "/System/Library/Extensions/ATI5000Controller.kext/Contents/MacOS/ATI5000Controller" };
+// Initialize trampolines
+mach_vm_address_t AMD5000::orgGetDeviceId = 0;
+mach_vm_address_t AMD5000::orgReadATOMBIOS = 0;
+mach_vm_address_t AMD5000::orgReadEfiRom = 0;
+mach_vm_address_t AMD5000::orgReadVramRom = 0;
+mach_vm_address_t AMD5000::orgReadPciRom = 0;
+mach_vm_address_t AMD5000::orgReadRegRom = 0;
+mach_vm_address_t AMD5000::orgGetBIOSInfo = 0;
+mach_vm_address_t AMD5000::orgMapPCISubRange = 0;
+
+// Define paths
+static const char *pathAMD5000Controller[] { "/System/Library/Extensions/ATI5000Controller.kext/Contents/MacOS/AMD5000Controller" };
 static KernelPatcher::KextInfo kextList[] {
-    { "com.apple.kext.ATI5000Controller", pathATI5000Controller, 1, {true}, {}, KernelPatcher::KextInfo::Unloaded },
+    { "com.apple.kext.AMD5000Controller", pathAMD5000Controller, 1, {true}, {}, KernelPatcher::KextInfo::Unloaded },
 };
 
-// Main Ati5000 Routine
-void Ati5000::init() {
-    DBGLOG(ATI5K, "Initializing ATI5000Controller hooks...");
+// Main AMD5000 Routine
+void AMD5000::init() {
+    DBGLOG(AMD5K, "Initializing AMD5000Controller hooks...");
     lilu.onKextLoadForce(kextList, arrsize(kextList), processKext, nullptr);
 }
 
-// Main 5000Controller hook routine
-void Ati5000::processKext(void *user, KernelPatcher &patcher, size_t index, mach_vm_address_t address, size_t size) {
-    // Identify which kext from our list triggered this callback
+// Main hook routine
+void AMD5000::processKext(void *user, KernelPatcher &patcher, size_t index, mach_vm_address_t address, size_t size) {
     size_t kextIndex = arrsize(kextList);
     for (size_t i = 0; i < arrsize(kextList); i++) {
         if (kextList[i].loadIndex == index) {
@@ -49,66 +48,33 @@ void Ati5000::processKext(void *user, KernelPatcher &patcher, size_t index, mach
     if (kextIndex == arrsize(kextList)) {
         return;
     }
-    if (strcmp(kextList[kextIndex].id, "com.apple.kext.ATI5000Controller") != 0) {
+    if (strcmp(kextList[kextIndex].id, "com.apple.kext.AMD5000Controller") != 0) {
         return;
     }
 
-    DBGLOG(ATI5K, "Found %s (of Global Index %lu) - Hooking...", kextList[kextIndex].id, index);
+    DBGLOG(AMD5K, "Found %s (of Global Index %lu) - Hooking...", kextList[kextIndex].id, index);
 
     KernelPatcher::RouteRequest requests[] {
-        { "__ZN17ATI5000Controller11getDeviceIdEv", getDeviceId, orgGetDeviceId },
-        { "__ZN17ATI5000Controller12readATOMBIOSEv", readATOMBIOS, orgReadATOMBIOS },
-        { "__ZN17ATI5000Controller11getBIOSInfoEv", getBIOSInfo, orgGetBIOSInfo },
-        { "__ZN17ATI5000Controller10readEfiRomEPhj", readEfiRom, orgReadEfiRom },
-        { "__ZN17ATI5000Controller11readVramRomEPhj", readVramRom, orgReadVramRom },
-        { "__ZN17ATI5000Controller10readPciRomEPhj", readPciRom, orgReadPciRom },
-        { "__ZN17ATI5000Controller10readRegRomEPhj", readRegRom, orgReadRegRom },
+        { "__ZN17AMD5000Controller11getDeviceIdEv", getDeviceId, orgGetDeviceId },
+        { "__ZN17AMD5000Controller12readATOMBIOSEv", readATOMBIOS, orgReadATOMBIOS },
+        { "__ZN17AMD5000Controller11getBIOSInfoEv", getBIOSInfo, orgGetBIOSInfo },
+        { "__ZN17AMD5000Controller10readEfiRomEPhj", readEfiRom, orgReadEfiRom },
+        { "__ZN17AMD5000Controller11readVramRomEPhj", readVramRom, orgReadVramRom },
+        { "__ZN17AMD5000Controller10readPciRomEPhj", readPciRom, orgReadPciRom },
+        { "__ZN17AMD5000Controller10readRegRomEPhj", readRegRom, orgReadRegRom },
         { "__ZN13ATIController14mapPCISubRangeE13PCI_REG_INDEXyy", nullptr, orgMapPCISubRange }
     };
 
     if (!patcher.routeMultiple(index, requests, arrsize(requests), address, size)) {
-        DBGLOG(ATI5K, "Failed to hook functions for Index %lu (Error: %d).", index, patcher.getError());
+        DBGLOG(AMD5K, "Failed to hook functions for Index %lu (Error: %d).", index, patcher.getError());
     } else {
-        DBGLOG(ATI5K, "Successfully hooked functions for Index %lu.", index);
+        DBGLOG(AMD5K, "Successfully hooked functions for Index %lu.", index);
     }
 
 }
 
-uint32_t Ati5000::getDeviceId(void *that) {
-    uint32_t deviceId = 0;
-    char procName[64] = {0};
-    proc_selfname(procName, sizeof(procName));
-    int pid = proc_selfpid();
-    DBGLOG(ATI5K, "[%s:%d] ATI5000Controller::getDeviceId() called.", procName, pid);
-    
-    // Get the real Device ID from the hardware/original function
-    if (orgGetDeviceId) {
-        deviceId = FunctionCast(getDeviceId, orgGetDeviceId)(that);
-        DBGLOG(ATI5K, "[%s:%d] ATI5000Controller::getDeviceId() got Device ID: 0x%04X", procName, pid, deviceId);
-    } else {
-        deviceId = 0x0000;
-        DBGLOG(ATI5K, "ATI5000Controller::getDeviceId() failed to call via trampoline!");
-        return deviceId;
-    }
-
-    // Spoof injected devices to architecture match
-    // 68F9 -> 68E0
-    // XXXX -> XXXX
-    uint32_t originalId = deviceId;
-    if ((deviceId & 0xFFFF) == 0x68F9) {
-        deviceId = (deviceId & 0xFFFF0000) | 0x68E0;
-    }
-
-    // We log out if a card supported by RV is being actively spoofed
-    if ((originalId & 0xFFFF) == 0x68F9) {
-        DBGLOG(ATI5K, "    Real ID: 0x%04X -> Spoofed ID: 0x%04X", originalId, deviceId);
-    }
-
-    return deviceId;
-}
-
-bool Ati5000::readEfiRom(void *that, void *buffer, uint32_t size) {
-    DBGLOG(ATI5K, "readEfiRom called (Size: %d)", size);
+bool AMD5000::readEfiRom(void *that, void *buffer, uint32_t size) {
+    DBGLOG(AMD5K, "AMD5000Controller::readEfiRom(): readEfiRom called (Size: %d)", size);
     
     // Offset 0x32 is likely the IOPCIDevice* provider
     IOPCIDevice* device = getMember<IOPCIDevice*>(that, 0x32);
@@ -120,7 +86,7 @@ bool Ati5000::readEfiRom(void *that, void *buffer, uint32_t size) {
     
     if (data) {
         uint32_t len = data->getLength();
-        DBGLOG(ATI5K, "Found ATY,bin_image in EFI (Len: %d)", len);
+        DBGLOG(AMD5K, "AMD5000Controller::readEfiRom(): Found ATY,bin_image in EFI (Len: %d)", len);
         
         if (len >= size) {
             len = size;
@@ -136,10 +102,10 @@ bool Ati5000::readEfiRom(void *that, void *buffer, uint32_t size) {
             // Verify Signature (0x55 0xAA)
             uint8_t* b = (uint8_t*)buffer;
             if (b[0] == 0x55 && b[1] == 0xAA) {
-                DBGLOG(ATI5K, "readEfiRom: Valid Signature Found");
+                DBGLOG(AMD5K, "AMD5000Controller::readEfiRom(): Valid Signature Found");
                 return true;
             } else {
-                DBGLOG(ATI5K, "readEfiRom: Invalid Signature (0x%02X 0x%02X)", b[0], b[1]);
+                DBGLOG(AMD5K, "AMD5000Controller::readEfiRom(): Invalid Signature (0x%02X 0x%02X)", b[0], b[1]);
             }
         }
     }
@@ -147,67 +113,59 @@ bool Ati5000::readEfiRom(void *that, void *buffer, uint32_t size) {
     return false;
 }
 
-bool Ati5000::readVramRom(void *that, void *buffer, uint32_t size) {
-    DBGLOG(ATI5K, "Ati5000::readVramRom() called");
+bool AMD5000::readVramRom(void *that, void *buffer, uint32_t size) {
+    DBGLOG(AMD5K, "AMD5000Controller::readVramRom(): called");
 
-    // Requires mapPCISubRange logic.
-    // For now, let's call the original implementation but log the result.
-    // Reimplementing mapping logic entirely requires exact IOMemoryMap offsets.
-    
     if (orgReadVramRom) {
         bool result = FunctionCast(readVramRom, orgReadVramRom)(that, buffer, size);
-        DBGLOG(ATI5K, "Ati5000::readVramRom() result: %s", result ? "Success" : "Fail");
+        DBGLOG(AMD5K, "AMD5000Controller::readVramRom(): result: %s", result ? "Success" : "Fail");
         return result;
     } else {
-        DBGLOG(ATI5K, "Ati5000::readVramRom() failed to call via trampoline!");
+        DBGLOG(AMD5K, "AMD5000Controller::readVramRom(): failed to call via trampoline!");
         return false;
     }
 
     return false;
 }
 
-bool Ati5000::readPciRom(void *that, void *buffer, uint32_t size) {
-    DBGLOG(ATI5K, "Ati5000::readPciRom() called");
+bool AMD5000::readPciRom(void *that, void *buffer, uint32_t size) {
+    DBGLOG(AMD5K, "AMD5000Controller::readPciRom(): called");
 
     if (orgReadPciRom) {
         bool result = FunctionCast(readPciRom, orgReadPciRom)(that, buffer, size);
-        DBGLOG(ATI5K, "Ati5000::readPciRom() result: %s", result ? "Success" : "Fail");
+        DBGLOG(AMD5K, "AMD5000Controller::readPciRom(): result: %s", result ? "Success" : "Fail");
         return result;
     } else {
-        DBGLOG(ATI5K, "Ati5000::readPciRom() failed to call via trampoline!");
+        DBGLOG(AMD5K, "AMD5000Controller::readPciRom(): failed to call via trampoline!");
         return false;
     }
 
     return false;
 }
 
-bool Ati5000::readRegRom(void *that, void *buffer, uint32_t size) {
-    DBGLOG(ATI5K, "Ati5000::readRegRom() called");
-    
-    // This uses register index 0xA8 and data 0xAC.
-    // We can try to emulate this or call original.
-    // Calling original allows us to spy on it for now.
+bool AMD5000::readRegRom(void *that, void *buffer, uint32_t size) {
+    DBGLOG(AMD5K, "AMD5000Controller::readRegRom(): called");
     
     if (orgReadRegRom) {
         bool result = FunctionCast(readRegRom, orgReadRegRom)(that, buffer, size);
-        DBGLOG(ATI5K, "Ati5000::readRegRom() result: %s", result ? "Success" : "Fail");
+        DBGLOG(AMD5K, "AMD5000Controller::readRegRom(): result: %s", result ? "Success" : "Fail");
         return result;
     } else {
-        DBGLOG(ATI5K, "Ati5000::readRegRom() failed to call via trampoline!");
+        DBGLOG(AMD5K, "AMD5000Controller::readRegRom(): failed to call via trampoline!");
         return false;
     }
 
     return false;
 }
 
-int Ati5000::readATOMBIOS(void *that) {
-    DBGLOG(ATI5K, "Ati5000::readATOMBIOS(): called");
+int AMD5000::readATOMBIOS(void *that) {
+    DBGLOG(AMD5K, "AMD5000Controller::readATOMBIOS(): called");
 
     // Access the BIOS storage structure pointer stored at 0x530
     BiosContainer* biosInfo = getMember<BiosContainer*>(that, 0x530);
     
     if (!biosInfo) {
-        DBGLOG(ATI5K, "Ati5000::readATOMBIOS(): Error - BiosInfo struct is null");
+        DBGLOG(AMD5K, "AMD5000Controller::readATOMBIOS(): Error - BiosInfo struct is null");
         return kIOReturnError;
     }
 
@@ -226,23 +184,23 @@ int Ati5000::readATOMBIOS(void *that) {
 
     // Try standard readers
     if (readEfiRom(that, buffer, size)) {
-        DBGLOG(ATI5K, "Ati5000::readATOMBIOS(): Loaded BIOS from EFI ROM");
+        DBGLOG(AMD5K, "AMD5000Controller::readATOMBIOS(): Loaded BIOS from EFI ROM");
         success = true;
     } else if (readVramRom(that, buffer, size)) {
-        DBGLOG(ATI5K, "Ati5000::readATOMBIOS(): Loaded BIOS from VRAM ROM");
+        DBGLOG(AMD5K, "AMD5000Controller::readATOMBIOS(): Loaded BIOS from VRAM ROM");
         success = true;
     } else if (readPciRom(that, buffer, size)) {
-        DBGLOG(ATI5K, "Ati5000::readATOMBIOS(): Loaded BIOS from PCI ROM");
+        DBGLOG(AMD5K, "AMD5000Controller::readATOMBIOS(): Loaded BIOS from PCI ROM");
         success = true;
     } else if (readRegRom(that, buffer, size)) {
-        DBGLOG(ATI5K, "Ati5000::readATOMBIOS(): Loaded BIOS from Registry ROM");
+        DBGLOG(AMD5K, "AMD5000Controller::readATOMBIOS(): Loaded BIOS from Registry ROM");
         success = true;
     }
 
     // Fallback: Check for ATY,bin_image if standard readers failed
     // This mimics the original driver behavior at loc_17943
     if (!success) {
-        DBGLOG(ATI5K, "Standard readers failed. Checking for ATY,bin_image fallback...");
+        DBGLOG(AMD5K, "AMD5000Controller::readATOMBIOS(): Standard readers failed. Checking for ATY,bin_image fallback...");
         
         // Use offset 0x190 to get the provider (IOPCIDevice)
         IOService* provider = getMember<IOService*>(that, 0x190);
@@ -255,19 +213,19 @@ int Ati5000::readATOMBIOS(void *that) {
                 size_t copySize = (data->getLength() > size) ? size : data->getLength();
                 memcpy(buffer, data->getBytesNoCopy(), copySize);
                 
-                DBGLOG(ATI5K, "Ati5000::readATOMBIOS(Fallback): Loaded BIOS from ATY,bin_image (Size: %lu)", copySize);
+                DBGLOG(AMD5K, "AMD5000Controller::readATOMBIOS(Fallback): Loaded BIOS from ATY,bin_image (Size: %lu)", copySize);
                 success = true;
             } else {
-                DBGLOG(ATI5K, "Ati5000::readATOMBIOS(Fallback): ATY,bin_image not found on provider.");
+                DBGLOG(AMD5K, "AMD5000Controller::readATOMBIOS(Fallback): ATY,bin_image not found on provider.");
             }
         } else {
-            DBGLOG(ATI5K, "Ati5000::readATOMBIOS(Fallback): Provider at 0x190 is null.");
+            DBGLOG(AMD5K, "AMD5000Controller::readATOMBIOS(Fallback): Provider at 0x190 is null.");
         }
     }
 
     // Failure handling
     if (!success) {
-        DBGLOG(ATI5K, "Ati5000::readATOMBIOS(): Failed to load BIOS from any source!");
+        DBGLOG(AMD5K, "AMD5000Controller::readATOMBIOS(): Failed to load BIOS from any source!");
         if (biosInfo->buffer) {
             IOFree(biosInfo->buffer, biosInfo->size);
             biosInfo->buffer = nullptr;
@@ -283,14 +241,14 @@ int Ati5000::readATOMBIOS(void *that) {
         if (data) {
             provider->setProperty("ATY,bin_image", data);
             data->release();
-            DBGLOG(ATI5K, "Ati5000::readATOMBIOS(): Created ATY,bin_image property on provider.");
+            DBGLOG(AMD5K, "AMD5000Controller::readATOMBIOS(): Created ATY,bin_image property on provider.");
         }
     }
     
     return getBIOSInfo(that);
 }
 
-int Ati5000::getBIOSInfo(void *that) {
+int AMD5000::getBIOSInfo(void *that) {
     BiosContainer* biosInfo = getMember<BiosContainer*>(that, 0x530);
     if (!biosInfo || !biosInfo->buffer) return kIOReturnNotFound;
 
@@ -320,7 +278,7 @@ int Ati5000::getBIOSInfo(void *that) {
         for (int i = 0; i < 512; i++) {
             if (rom[i] == '1' && rom[i+1] == '1' && rom[i+2] == '3' && rom[i+3] == '-') {
                 strncpy(versionBuf, (char*)(rom + i), 0x20);
-                DBGLOG(ATI5K, "VBIOS SKU Found (Scan): %s", versionBuf);
+                DBGLOG(AMD5K, "VBIOS SKU Found (Scan): %s", versionBuf);
                 foundSku = true;
                 break;
             }
@@ -329,7 +287,7 @@ int Ati5000::getBIOSInfo(void *that) {
         // If scan failed, use the standard offset (even if it's the long description)
         if (!foundSku && strOffset != 0) {
             strncpy(versionBuf, (char*)(rom + strOffset), 0x20);
-            DBGLOG(ATI5K, "VBIOS Version (Standard): %s", versionBuf);
+            DBGLOG(AMD5K, "VBIOS Version (Standard): %s", versionBuf);
         }
         
         // Always return success if we have a valid AtomBIOS
@@ -340,3 +298,35 @@ int Ati5000::getBIOSInfo(void *that) {
     getMember<uint8_t>(that, 0x668) = 0;
     return 0xe00002c7;
 }
+
+uint32_t AMD5000::getDeviceId(void *that) {
+    uint32_t deviceId = 0;
+    char procName[64] = {0};
+    proc_selfname(procName, sizeof(procName));
+    int pid = proc_selfpid();
+    DBGLOG(AMD5K, "[%s:%d] AMD5000Controller::getDeviceId() called.", procName, pid);
+    
+    // Get the real Device ID from the hardware/original function
+    if (orgGetDeviceId) {
+        deviceId = FunctionCast(getDeviceId, orgGetDeviceId)(that);
+        DBGLOG(AMD5K, "[%s:%d] AMD5000Controller::getDeviceId() got Device ID: 0x%04X", procName, pid, deviceId);
+    } else {
+        deviceId = 0x0000;
+        DBGLOG(AMD5K, "AMD5000Controller::getDeviceId() failed to call via trampoline!");
+        return deviceId;
+    }
+
+    // Spoof injected devices to architecture match
+    uint32_t originalId = deviceId;
+    if ((deviceId & 0xFFFF) == 0x68F9) {
+        deviceId = (deviceId & 0xFFFF0000) | 0x68E0;
+    }
+
+    // We log out if a card supported by RV is being actively spoofed
+    if ((originalId & 0xFFFF) == 0x68F9) {
+        DBGLOG(AMD5K, "    Real ID: 0x%04X -> Spoofed ID: 0x%04X", originalId, deviceId);
+    }
+
+    return deviceId;
+}
+
