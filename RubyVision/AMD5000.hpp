@@ -45,13 +45,13 @@ private:
     static mach_vm_address_t orgMapPCISubRange; // ATIController::mapPCISubRange
 
     // Hook Implementations
-    static uint32_t getDeviceId(void *that);
+    static int readEfiRom(void *that, uint8_t *buffer, uint32_t length);
+    static int readVramRom(void *that, uint8_t *buffer, uint32_t length);
+    static int readPciRom(void *that, uint8_t *buffer, uint32_t length);
+    static int readRegRom(void *that, uint8_t *buffer, uint32_t length);
     static int readATOMBIOS(void *that);
-    static bool readEfiRom(void *that, void *buffer, uint32_t size);
-    static bool readVramRom(void *that, void *buffer, uint32_t size);
-    static bool readPciRom(void *that, void *buffer, uint32_t size);
-    static bool readRegRom(void *that, void *buffer, uint32_t size);
     static int getBIOSInfo(void *that);
+    static uint32_t getDeviceId(void *that);
     
     // Helper to access raw member offsets
     template <typename T>

@@ -202,23 +202,20 @@ int AtiSupport::initializeProjectInfoString(void *that, void *projectName) {
 
     int result = 0;
     if (orgInitializeProjectInfoString) {
-        // If the driver asks for "ATY,Hoolock", we redirect it to "Radeon"
-        // "Radeon" is the internal name for the generic framebuffer that reads the VBIOS.
-        // This is being done in an attempt to mitigate issues with connectors
+        // Redirect ATY,Hoolock to ATY,RadeonFramebuffer
         if (str && (strstr(nameStr, "Hoolock") || strstr(nameStr, "ATY,Hoolock"))) {
-            DBGLOG(ATISUP, "Redirecting '%s' to 'Radeon' (Generic VBIOS Parser)...", nameStr);
+            DBGLOG(ATISUP, "Redirecting '%s' to 'ATY,RadeonFramebuffer'...", nameStr);
             
-            OSString *genericName = OSString::withCString("Radeon");
+            OSString *genericName = OSString::withCString("ATY,RadeonFramebuffer");
             if (genericName) {
                 result = FunctionCast(initializeProjectInfoString, orgInitializeProjectInfoString)(that, genericName);
                 genericName->release();
-                
-                DBGLOG(ATISUP, "ATIController::initializeProjectInfo('Radeon') [String] -> Result: 0x%X", result);
+                DBGLOG(ATISUP, "ATIController::initializeProjectInfo('ATY,RadeonFramebuffer') -> Result: 0x%X", result);
                 return result;
             }
+
         }
         
-        // Default behavior for other projects
         result = FunctionCast(initializeProjectInfoString, orgInitializeProjectInfoString)(that, projectName);
     }
 
@@ -237,9 +234,8 @@ void AtiSupport::dumpRawConnectors(void *connectorInfo, int count) {
     }
 }
 
-bool AtiSupport::getConnectorsInfo(void *that, void *connectorInfo, uint8_t &count) {
-    // Call Original "Radeon" Generic Parser
-    bool result = false;
+int AtiSupport::getConnectorsInfo(void *that, void *connectorInfo, uint8_t &count) {
+    int result = -1;
     if (orgGetConnectorsInfo) {
         result = FunctionCast(getConnectorsInfo, orgGetConnectorsInfo)(that, connectorInfo, count);
     }
@@ -247,71 +243,68 @@ bool AtiSupport::getConnectorsInfo(void *that, void *connectorInfo, uint8_t &cou
     DBGLOG(ATISUP, "ATIController::getConnectorsInfo() Original Result: %s, Count: %d", result ? "True" : "False", count);
 
     // Patch the Data
-    if (connectorInfo && count > 0) {
-        auto *connectors = static_cast<LegacyConnector *>(connectorInfo);
+    // if (connectorInfo && count > 0) {
+    //     auto *connectors = static_cast<LegacyConnector *>(connectorInfo);
         
-        DBGLOG(ATISUP, "Patching Connectors...");
+    //     DBGLOG(ATISUP, "Patching Connectors...");
         
-        // Capture valid values from any successful port (e.g., HDMI) to reuse if needed
-        uint8_t validEnc = 0;
-        uint8_t validTx  = 0;
-        for (int i = 0; i < count; i++) {
-            if (connectors[i].encoder != 0) {
-                validEnc = connectors[i].encoder;
-                validTx  = connectors[i].transmitter;
-                break;
-            }
-        }
+    //     // Capture valid values from any successful port (e.g., HDMI) to reuse if needed
+    //     uint8_t validEnc = 0;
+    //     uint8_t validTx  = 0;
+    //     for (int i = 0; i < count; i++) {
+    //         if (connectors[i].encoder != 0) {
+    //             validEnc = connectors[i].encoder;
+    //             validTx  = connectors[i].transmitter;
+    //             break;
+    //         }
+    //     }
 
-        // Default fallback if nothing found
-        if (validEnc == 0) validEnc = 3;
-        if (validTx == 0)  validTx  = 0x21; // 33
+    //     // Default fallback if nothing found
+    //     if (validEnc == 0) validEnc = 3;
+    //     if (validTx == 0)  validTx  = 0x21; // 33
 
-        for (int i = 0; i < count; i++) {
-            LegacyConnector *conn = &connectors[i];
+    //     for (int i = 0; i < count; i++) {
+    //         LegacyConnector *conn = &connectors[i];
             
-            // Priorities (Priority 0 = Black Screen)
-            if (conn->priority == 0) {
-                conn->priority = i + 1;
-            }
+    //         // Priorities (Priority 0 = Black Screen)
+    //         if (conn->priority == 0) {
+    //             conn->priority = i + 1;
+    //         }
 
-            // Sense IDs (Zero Sense = Driver ignores port)
-            if (conn->sense == 0) {
-                conn->sense = i + 1;
-            }
+    //         // Sense IDs (Zero Sense = Driver ignores port)
+    //         if (conn->sense == 0) {
+    //             conn->sense = i + 1;
+    //         }
 
-            // Encoders/Transmitters (Zero = Driver Init Failed)
-            if (conn->encoder == 0) {
-                if (conn->type == ConnectorVGA) {
-                    // VGA usually needs a DAC. Try Encoder 1 (or 0x10 if raw).
-                    // Legacy struct uses indices. 1 is often DAC1.
-                    conn->encoder = 1; 
-                    conn->transmitter = 0; // DACs usually have Tx 0 or 0x10
-                    DBGLOG(ATISUP, "  [%d] VGA: Patched Enc:0->1 Tx:0->0", i);
-                } else {
-                    // DVI/HDMI/Digital: Reuse the known valid Digital Encoder
-                    conn->encoder = validEnc;
-                    conn->transmitter = validTx;
-                    DBGLOG(ATISUP, "  [%d] Digital: Patched Enc:0->%d Tx:0->%d", i, validEnc, validTx);
-                }
-            }
+    //         // Encoders/Transmitters (Zero = Driver Init Failed)
+    //         if (conn->encoder == 0) {
+    //             if (conn->type == ConnectorVGA) {
+    //                 // VGA usually needs a DAC. Try Encoder 1 (or 0x10 if raw).
+    //                 // Legacy struct uses indices. 1 is often DAC1.
+    //                 conn->encoder = 1; 
+    //                 conn->transmitter = 0; // DACs usually have Tx 0 or 0x10
+    //                 DBGLOG(ATISUP, "  [%d] VGA: Patched Enc:0->1 Tx:0->0", i);
+    //             } else {
+    //                 // DVI/HDMI/Digital: Reuse the known valid Digital Encoder
+    //                 conn->encoder = validEnc;
+    //                 conn->transmitter = validTx;
+    //                 DBGLOG(ATISUP, "  [%d] Digital: Patched Enc:0->%d Tx:0->%d", i, validEnc, validTx);
+    //             }
+    //         }
 
-            // Flags to set connectors to HDMI, DVI-D, VGA
-            if (conn->flags == 0) {
-                if (conn->type == ConnectorHDMI)       conn->flags = 0x00000204;
-                else if (conn->type == ConnectorDigitalDVI) conn->flags = 0x00000004;
-                else if (conn->type == ConnectorVGA)        conn->flags = 0x00000010;
-            }
+    //         // Flags to set connectors to HDMI, DVI-D, VGA
+    //         if (conn->flags == 0) {
+    //             if (conn->type == ConnectorHDMI)       conn->flags = 0x00000204;
+    //             else if (conn->type == ConnectorDigitalDVI) conn->flags = 0x00000004;
+    //             else if (conn->type == ConnectorVGA)        conn->flags = 0x00000010;
+    //         }
             
-            DBGLOG(ATISUP, "  [%d] Final: Type:0x%X Sense:0x%X Prio:%d Enc:%d Tx:%d", 
-                   i, conn->type, conn->sense, conn->priority, conn->encoder, conn->transmitter);
-        }
-        
-        // Force Success so driver accepts our patched table
-        result = true;
-    } else {
-        DBGLOG(ATISUP, "ATIController::getConnectorsInfo() returned no data to patch.");
-    }
+    //         DBGLOG(ATISUP, "  [%d] Final: Type:0x%X Sense:0x%X Prio:%d Enc:%d Tx:%d", 
+    //                i, conn->type, conn->sense, conn->priority, conn->encoder, conn->transmitter);
+    //     }
+    // } else {
+    //     DBGLOG(ATISUP, "ATIController::getConnectorsInfo() returned no data to patch.");
+    // }
 
     return result;
 }

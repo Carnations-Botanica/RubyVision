@@ -64,7 +64,7 @@ void AMDSupport::processKext(void *user, KernelPatcher &patcher, size_t index, m
         return;
     }
 
-    if (strcmp(kextList[kextIndex].id, "com.apple.kext.ATISupport") != 0) {
+    if (strcmp(kextList[kextIndex].id, "com.apple.kext.AMDSupport") != 0) {
         return;
     }
     
@@ -89,15 +89,15 @@ void AMDSupport::processKext(void *user, KernelPatcher &patcher, size_t index, m
     }
 }
 
-// Helper to dbgout the connectors gotten
+// Helper to dbgout the connectors
 void AMDSupport::dumpRawConnectors(void *connectorInfo, int count) {
     auto *connectors = static_cast<LegacyConnector *>(connectorInfo);
-    DBGLOG(AMDSUP, "Raw Connectors Dump");
+    DBGLOG(AMDSUP, "Raw Connectors Dump (Count: %d)", count);
 
     for (int i = 0; i < count; i++) {
         LegacyConnector *c = &connectors[i];
-        DBGLOG(AMDSUP, "  [%d] Type:0x%X (%s) Sense:0x%X Flags:0x%X Prio:%d Enc:%d Tx:%d",
-               i, c->type, getConnectorTypeName(c->type), c->sense, c->flags, c->priority, c->encoder, c->transmitter);
+        DBGLOG(AMDSUP, "  [%d] Type:0x%X Sense:0x%X Prio:%d Enc:%d Tx:0x%X",
+               i, c->type, c->sense, c->priority, c->encoder, c->transmitter);
     }
 }
 
@@ -196,15 +196,35 @@ int AMDSupport::doesSupportsProject(void *that, void *projectName) {
 
 int AMDSupport::initializeProjectInfo(void *that) {
     int result = 0;
-    DBGLOG(AMDSUP, "ATIController::initializeProjectInfo() [Void] called");
-
-    // Call OG function
+    
+    // Call OG first to let it do basic setup
     if (orgInitializeProjectInfo) {
         result = FunctionCast(initializeProjectInfo, orgInitializeProjectInfo)(that);
     }
     
-    // Log result
-    DBGLOG(AMDSUP, "ATIController::initializeProjectInfo() [Void] -> Result: 0x%X", result);
+    DBGLOG(AMDSUP, "ATIController::initializeProjectInfo() Original Result: 0x%X", result);
+
+    // If it failed (which it does for RadeonFramebuffer), we intervene
+    if (result != 0) {
+        DBGLOG(AMDSUP, "ATIController::initializeProjectInfo() failed. Forcing manual 'RadeonFramebuffer' setup...");
+
+        // We need to set specific properties on the IOService (that->provider usually)
+        // Accessing 'that' as an IOService
+        IOService *service = static_cast<IOService *>(that);
+        if (service) {
+            service->setProperty("@0,name", OSString::withCString("ATY,RadeonFramebuffer"));
+            
+            uint32_t refClk = 2700; // 27 MHz * 100
+            service->setProperty("ATY,RefCLK", OSData::withBytes(&refClk, sizeof(refClk)));
+            service->setProperty("ATY,RefClock", OSData::withBytes(&refClk, sizeof(refClk)));
+
+            service->setProperty("model", OSString::withCString("ATI Radeon HD 5000"));
+            service->setProperty("device_type", OSString::withCString("gpu-controller"));
+        }
+
+        result = 0;
+    }
+    
     return result;
 }
 
@@ -221,107 +241,77 @@ int AMDSupport::initializeProjectInfoString(void *that, void *projectName) {
 
     int result = 0;
     if (orgInitializeProjectInfoString) {
-        // If the driver asks for "ATY,Hoolock", we redirect it to "Radeon"
-        // "Radeon" is the internal name for the generic framebuffer that reads the VBIOS.
-        // This is being done in an attempt to mitigate issues with connectors
+        // Redirect ATY,Hoolock to RadeonFramebuffer
         if (str && (strstr(nameStr, "Hoolock") || strstr(nameStr, "ATY,Hoolock"))) {
-            DBGLOG(AMDSUP, "Redirecting '%s' to 'Radeon' (Generic VBIOS Parser)...", nameStr);
+            DBGLOG(AMDSUP, "Redirecting '%s' to 'ATY,ATY,RadeonFramebuffer'...", nameStr);
             
-            OSString *genericName = OSString::withCString("Radeon");
+            OSString *genericName = OSString::withCString("ATY,ATY,RadeonFramebuffer");
             if (genericName) {
+                // Call original just in case it does partial setup, but expect failure
                 result = FunctionCast(initializeProjectInfoString, orgInitializeProjectInfoString)(that, genericName);
                 genericName->release();
                 
-                DBGLOG(AMDSUP, "ATIController::initializeProjectInfo('Radeon') [String] -> Result: 0x%X", result);
-                return result;
+                DBGLOG(AMDSUP, "ATIController::initializeProjectInfo('ATY,ATY,RadeonFramebuffer') Original Result: 0x%X", result);
+                return 1;
             }
         }
         
-        // Default behavior for other projects
         result = FunctionCast(initializeProjectInfoString, orgInitializeProjectInfoString)(that, projectName);
     }
 
-    DBGLOG(AMDSUP, "ATIController::initializeProjectInfo(Project: '%s') [String] -> Result: 0x%X", nameStr, result);
     return result;
 }
 
-bool AMDSupport::getConnectorsInfo(void *that, void *connectorInfo, uint8_t &count) {
-    // Call Original "Radeon" Generic Parser
-    bool result = false;
-    if (orgGetConnectorsInfo) {
-        result = FunctionCast(getConnectorsInfo, orgGetConnectorsInfo)(that, connectorInfo, count);
-    }
+// Inject generated topology from ATY,RFB (HDMI, DVI, VGA)
+int AMDSupport::getConnectorsInfo(void *that, void *connectorInfo, uint8_t &count) {
     
-    DBGLOG(AMDSUP, "ATIController::getConnectorsInfo() Original Result: %s, Count: %d", result ? "True" : "False", count);
-
-    // Patch the Data
-    if (connectorInfo && count > 0) {
+    if (connectorInfo) {
+        DBGLOG(AMDSUP, "ATIController::getConnectorsInfo(): Injecting custom connector data...");
+        
         auto *connectors = static_cast<LegacyConnector *>(connectorInfo);
         
-        DBGLOG(AMDSUP, "ATIController::getConnectorsInfo(): Patching Connectors...");
+        // Only clear 3 slots (48 bytes)
+        memset(connectors, 0, sizeof(LegacyConnector) * 3);
+
+        // [0] HDMI
+        connectors[0].type        = ConnectorHDMI; // 0x800
+        connectors[0].flags       = 0x00000204;
+        connectors[0].features    = 0x0000;
+        connectors[0].priority    = 0;
+        connectors[0].sense       = 0x2; 
+        connectors[0].hotplug     = 0; 
+        connectors[0].transmitter = 33; // 0x21
+        connectors[0].encoder     = 3;  // Encoder 3
+
+        // [1] DVI-D
+        connectors[1].type        = ConnectorDigitalDVI; // 0x4
+        connectors[1].flags       = 0x00000004;
+        connectors[1].features    = 0x0000;
+        connectors[1].priority    = 0;
+        connectors[1].sense       = 0x4;
+        connectors[1].hotplug     = 0;
+        connectors[1].transmitter = 0;
+        connectors[1].encoder     = 0; 
+
+        // [2] VGA
+        connectors[2].type        = ConnectorVGA; // 0x10
+        connectors[2].flags       = 0x00000010;
+        connectors[2].features    = 0x0000;
+        connectors[2].priority    = 0;
+        connectors[2].sense       = 0x1;
+        connectors[2].hotplug     = 0;
+        connectors[2].transmitter = 0;
+        connectors[2].encoder     = 0;
+
+        count = 3;
         
-        // Capture valid values from any successful port (e.g., HDMI) to reuse if needed
-        uint8_t validEnc = 0;
-        uint8_t validTx  = 0;
-        for (int i = 0; i < count; i++) {
-            if (connectors[i].encoder != 0) {
-                validEnc = connectors[i].encoder;
-                validTx  = connectors[i].transmitter;
-                break;
-            }
-        }
-
-        // Default fallback if nothing found
-        if (validEnc == 0) validEnc = 3;
-        if (validTx == 0)  validTx  = 0x21; // 33
-
-        for (int i = 0; i < count; i++) {
-            LegacyConnector *conn = &connectors[i];
-            
-            // Priorities (Priority 0 = Black Screen)
-            if (conn->priority == 0) {
-                conn->priority = i + 1;
-            }
-
-            // Sense IDs (Zero Sense = Driver ignores port)
-            if (conn->sense == 0) {
-                conn->sense = i + 1;
-            }
-
-            // Encoders/Transmitters (Zero = Driver Init Failed)
-            if (conn->encoder == 0) {
-                if (conn->type == ConnectorVGA) {
-                    // VGA usually needs a DAC. Try Encoder 1 (or 0x10 if raw).
-                    // Legacy struct uses indices. 1 is often DAC1.
-                    conn->encoder = 1; 
-                    conn->transmitter = 0; // DACs usually have Tx 0 or 0x10
-                    DBGLOG(AMDSUP, "  [%d] VGA: Patched Enc:0->1 Tx:0->0", i);
-                } else {
-                    // DVI/HDMI/Digital: Reuse the known valid Digital Encoder
-                    conn->encoder = validEnc;
-                    conn->transmitter = validTx;
-                    DBGLOG(AMDSUP, "  [%d] Digital: Patched Enc:0->%d Tx:0->%d", i, validEnc, validTx);
-                }
-            }
-
-            // Flags to set connectors to HDMI, DVI-D, VGA
-            if (conn->flags == 0) {
-                if (conn->type == ConnectorHDMI)       conn->flags = 0x00000204;
-                else if (conn->type == ConnectorDigitalDVI) conn->flags = 0x00000004;
-                else if (conn->type == ConnectorVGA)        conn->flags = 0x00000010;
-            }
-            
-            DBGLOG(AMDSUP, "  [%d] Final: Type:0x%X Sense:0x%X Prio:%d Enc:%d Tx:%d", 
-                   i, conn->type, conn->sense, conn->priority, conn->encoder, conn->transmitter);
-        }
+        dumpRawConnectors(connectorInfo, count);
         
-        // Force Success so driver accepts our patched table
-        result = true;
-    } else {
-        DBGLOG(AMDSUP, "ATIController::getConnectorsInfo(): returned no data to patch.");
+        // Return 0 = kIOReturnSuccess
+        return 0;
     }
-
-    return result;
+    
+    return -1;
 }
 
 void *AMDSupport::getAtomObjectTable(void *that) {

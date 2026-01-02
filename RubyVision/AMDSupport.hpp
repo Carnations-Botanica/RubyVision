@@ -44,10 +44,10 @@ private:
     // Reimplementations
     static bool controllerStart(void *that, void *provider);
     static void *controllerProbe(void *that, void *provider, int32_t *score);
-    static bool getConnectorsInfo(void *that, void *connectorInfo, uint8_t &count);
     static void *getAtomObjectTable(void *that);
     static void *getAtomObjectTableForType(void *that, uint8_t type, uint8_t &revision);
     static int checkDDCConnections(void *that, void *connector, uint32_t flags, void *edid);
+    static int getConnectorsInfo(void *that, void *connectorInfo, uint8_t &count);
     static int doesSupportsProject(void *that, void *projectName);
     static int initializeProjectInfo(void *that);
     static int initializeProjectInfoString(void *that, void *projectName);

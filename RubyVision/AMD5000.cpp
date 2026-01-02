@@ -73,107 +73,191 @@ void AMD5000::processKext(void *user, KernelPatcher &patcher, size_t index, mach
 
 }
 
-bool AMD5000::readEfiRom(void *that, void *buffer, uint32_t size) {
-    DBGLOG(AMD5K, "AMD5000Controller::readEfiRom(): readEfiRom called (Size: %d)", size);
-    
-    // Offset 0x32 is likely the IOPCIDevice* provider
-    IOPCIDevice* device = getMember<IOPCIDevice*>(that, 0x32);
-    if (!device) return false;
-
-    // Check for "ATY,bin_image" on the provider
-    OSObject* prop = device->getProperty("ATY,bin_image");
-    OSData* data = OSDynamicCast(OSData, prop);
-    
-    if (data) {
-        uint32_t len = data->getLength();
-        DBGLOG(AMD5K, "AMD5000Controller::readEfiRom(): Found ATY,bin_image in EFI (Len: %d)", len);
-        
-        if (len >= size) {
-            len = size;
-        } else {
-            // If data is smaller, use what we have? Original code seems to imply strict size check
-            // but we can be lenient.
-        }
-        
-        const void* bytes = data->getBytesNoCopy();
-        if (bytes) {
-            memcpy(buffer, bytes, len);
-            
-            // Verify Signature (0x55 0xAA)
-            uint8_t* b = (uint8_t*)buffer;
-            if (b[0] == 0x55 && b[1] == 0xAA) {
-                DBGLOG(AMD5K, "AMD5000Controller::readEfiRom(): Valid Signature Found");
-                return true;
-            } else {
-                DBGLOG(AMD5K, "AMD5000Controller::readEfiRom(): Invalid Signature (0x%02X 0x%02X)", b[0], b[1]);
-            }
-        }
-    }
-    
-    return false;
+void getProcInfo(char *name, int &pid) {
+    proc_selfname(name, 64);
+    pid = proc_selfpid();
 }
 
-bool AMD5000::readVramRom(void *that, void *buffer, uint32_t size) {
-    DBGLOG(AMD5K, "AMD5000Controller::readVramRom(): called");
+// Helper for various ROM Reads
+void logRomAttempt(const char *method, uint8_t *buffer, uint32_t length, int result) {
+    char pName[64] = {0}; int pid = 0; getProcInfo(pName, pid);
+    
+    bool signatureFound = false;
+    if (buffer && length >= 2) {
+        if (buffer[0] == 0x55 && buffer[1] == 0xAA) {
+            signatureFound = true;
+        }
+    }
+
+    DBGLOG(AMD5K, "[%s:%d] %s(len=0x%X) -> Returned: 0x%X. Signature Valid: %s", 
+           pName, pid, method, length, result, signatureFound ? "YES" : "NO");
+
+    if (buffer && length >= 4 && signatureFound) {
+        DBGLOG(AMD5K, "    Buffer Dump: %02X %02X %02X %02X", buffer[0], buffer[1], buffer[2], buffer[3]);
+    }
+
+}
+
+int AMD5000::readEfiRom(void *that, uint8_t *buffer, uint32_t length) {
+    // char pName[64] = {0}; int pid = 0; getProcInfo(pName, pid);
+    // IOService *controller = static_cast<IOService *>(that);
+    
+    // if (controller) {
+    //     IOService *provider = controller->getProvider();
+    //     if (provider) {
+    //         OSObject *prop = provider->getProperty("ATY,bin_image");
+    //         if (!prop) {
+    //             DBGLOG("AtiDbg5000", "[%s:%d] readEfiRom Pre-Check: 'ATY,bin_image' property NOT found.", pName, pid);
+    //         } else {
+    //             OSData *data = OSDynamicCast(OSData, prop);
+    //             if (!data) {
+    //                 DBGLOG("AtiDbg5000", "[%s:%d] readEfiRom Pre-Check: 'ATY,bin_image' is NOT OSData.", pName, pid);
+    //             } else {
+    //                 uint32_t propLen = data->getLength();
+    //                 DBGLOG("AtiDbg5000", "[%s:%d] readEfiRom Pre-Check: 'ATY,bin_image' found. Size: %d", pName, pid, propLen);
+                    
+    //                 if (propLen >= 2) {
+    //                     const uint8_t *bytes = (const uint8_t *)data->getBytesNoCopy();
+    //                     if (bytes[0] != 0x55 || bytes[1] != 0xAA) {
+    //                         DBGLOG("AtiDbg5000", "    WARN: Property contains Invalid ROM Signature (%02X %02X)!", bytes[0], bytes[1]);
+    //                     }
+    //                 }
+    //             }
+    //         }
+    //     }
+    // }
+
+    if (orgReadEfiRom) {
+        typedef int (*t_read)(void *, uint8_t *, uint32_t);
+        int ret = reinterpret_cast<t_read>(orgReadEfiRom)(that, buffer, length);
+        logRomAttempt("readEfiRom", buffer, length, ret);
+        return ret;
+    }
+
+    return 0;
+}
+
+int AMD5000::readVramRom(void *that, uint8_t *buffer, uint32_t length) {
+    // char pName[64] = {0}; int pid = 0; getProcInfo(pName, pid);
+    // IOService *controller = static_cast<IOService *>(that);
+    // IOPCIDevice *pci = OSDynamicCast(IOPCIDevice, controller ? controller->getProvider() : nullptr);
+    
+    // if (pci) {
+    //     // Read BAR 0 (Memory) and Command Register
+    //     uint32_t bar0 = pci->configRead32(0x10);
+    //     uint16_t cmd = pci->configRead16(0x04);
+    //     bool memEnabled = (cmd & 0x02) != 0;
+    
+    //     DBGLOG("AtiDbg5000", "[%s:%d] readVramRom Pre-Check: BAR0=0x%08X, CmdReg=0x%04X (MemEnable=%s)", 
+    //            pName, pid, bar0, cmd, memEnabled ? "YES" : "NO");
+    
+    //     if (!memEnabled) {
+    //         DBGLOG("AtiDbg5000", "[%s:%d] readVramRom Warning: Memory decoding disabled! Attempting to enable...", pName, pid);
+    //         pci->configWrite16(0x04, cmd | 0x02);
+    //     }
+    // }
 
     if (orgReadVramRom) {
-        bool result = FunctionCast(readVramRom, orgReadVramRom)(that, buffer, size);
-        DBGLOG(AMD5K, "AMD5000Controller::readVramRom(): result: %s", result ? "Success" : "Fail");
-        return result;
-    } else {
-        DBGLOG(AMD5K, "AMD5000Controller::readVramRom(): failed to call via trampoline!");
-        return false;
+        typedef int (*t_read)(void *, uint8_t *, uint32_t);
+        int ret = reinterpret_cast<t_read>(orgReadVramRom)(that, buffer, length);
+        logRomAttempt("readVramRom", buffer, length, ret);
+        return ret;
     }
 
-    return false;
+    return 0;
 }
 
-bool AMD5000::readPciRom(void *that, void *buffer, uint32_t size) {
-    DBGLOG(AMD5K, "AMD5000Controller::readPciRom(): called");
+int AMD5000::readPciRom(void *that, uint8_t *buffer, uint32_t length) {
+    // char pName[64] = {0}; int pid = 0; getProcInfo(pName, pid);
+    // IOService *controller = static_cast<IOService *>(that);
+    // IOPCIDevice *pci = OSDynamicCast(IOPCIDevice, controller ? controller->getProvider() : nullptr);
+    
+    // if (pci) {
+    //     // Read Expansion ROM BAR
+    //     uint32_t romBar = pci->configRead32(0x30);
+    //     DBGLOG("AtiDbg5000", "[%s:%d] readPciRom Pre-Check: Expansion ROM BAR=0x%08X", pName, pid, romBar);
+        
+    //     if ((romBar & 0xFFFFF800) == 0) {
+    //          DBGLOG("AtiDbg5000", "[%s:%d] readPciRom Warning: ROM BAR appears empty/unassigned.", pName, pid);
+    //     }
+    // }
 
     if (orgReadPciRom) {
-        bool result = FunctionCast(readPciRom, orgReadPciRom)(that, buffer, size);
-        DBGLOG(AMD5K, "AMD5000Controller::readPciRom(): result: %s", result ? "Success" : "Fail");
-        return result;
-    } else {
-        DBGLOG(AMD5K, "AMD5000Controller::readPciRom(): failed to call via trampoline!");
-        return false;
+        typedef int (*t_read)(void *, uint8_t *, uint32_t);
+        int ret = reinterpret_cast<t_read>(orgReadPciRom)(that, buffer, length);
+        logRomAttempt("readPciRom", buffer, length, ret);
+        return ret;
     }
 
-    return false;
+    return 0;
 }
 
-bool AMD5000::readRegRom(void *that, void *buffer, uint32_t size) {
-    DBGLOG(AMD5K, "AMD5000Controller::readRegRom(): called");
-    
+int AMD5000::readRegRom(void *that, uint8_t *buffer, uint32_t length) {
     if (orgReadRegRom) {
-        bool result = FunctionCast(readRegRom, orgReadRegRom)(that, buffer, size);
-        DBGLOG(AMD5K, "AMD5000Controller::readRegRom(): result: %s", result ? "Success" : "Fail");
-        return result;
-    } else {
-        DBGLOG(AMD5K, "AMD5000Controller::readRegRom(): failed to call via trampoline!");
-        return false;
+        typedef int (*t_read)(void *, uint8_t *, uint32_t);
+        int ret = reinterpret_cast<t_read>(orgReadRegRom)(that, buffer, length);
+        logRomAttempt("readRegRom", buffer, length, ret);
+        
+        // Patch VBIOS checksum & verify ATOM bios
+        if (buffer && length > 0) {
+            // Scan for "ATOM" signature
+            bool atomFound = false;
+            for (uint32_t i = 0; i < length - 4; i++) {
+                if (buffer[i] == 'A' && buffer[i+1] == 'T' && buffer[i+2] == 'O' && buffer[i+3] == 'M') {
+                    DBGLOG("AtiDbg5000", "    ATOM Signature found at offset 0x%X", i);
+                    atomFound = true;
+                    break;
+                }
+            }
+            
+            if (!atomFound) {
+                 DBGLOG(AMD5K, "    WARN: ATOM Signature NOT found in VBIOS image!");
+            }
+
+            // Validate and Fix Checksum
+            uint8_t sum = 0;
+            for (uint32_t i = 0; i < length; i++) {
+                sum += buffer[i];
+            }
+            
+            if (sum != 0) {
+                DBGLOG(AMD5K, "    WARN: Invalid VBIOS Checksum (Sum: 0x%02X). Fixing...", sum);
+                // Calculate difference needed to make sum == 0
+                uint8_t diff = 0 - sum;
+                buffer[length - 1] += diff;
+                DBGLOG(AMD5K, "    VBIOS Checksum Fixed.");
+            } else {
+                DBGLOG(AMD5K, "    VBIOS Checksum Valid (0x00).");
+            }
+        }
+        
+        return ret;
     }
 
-    return false;
+    return 0;
 }
 
 int AMD5000::readATOMBIOS(void *that) {
     DBGLOG(AMD5K, "AMD5000Controller::readATOMBIOS(): called");
 
-    // Access the BIOS storage structure pointer stored at 0x530
-    BiosContainer* biosInfo = getMember<BiosContainer*>(that, 0x530);
+    // Offset 0x418: BiosContainer*
+    BiosContainer* biosInfo = getMember<BiosContainer*>(that, 0x418);
     
     if (!biosInfo) {
         DBGLOG(AMD5K, "AMD5000Controller::readATOMBIOS(): Error - BiosInfo struct is null");
         return kIOReturnError;
     }
 
-    // Allocate 64KB buffer if needed
-    if (biosInfo->buffer == nullptr) {
-        biosInfo->buffer = IOMalloc(0x10000);
-        biosInfo->size = 0x10000;
+    // ASM 0x163af: If buffer is already allocated, return kIOReturnSuccess (0) immediately.
+    // This prevents re-reading or double-allocation logic issues.
+    if (biosInfo->buffer != nullptr) {
+        DBGLOG(AMD5K, "AMD5000Controller::readATOMBIOS(): BIOS already loaded. Returning success.");
+        return kIOReturnSuccess;
     }
+
+    // Allocate 64KB buffer
+    biosInfo->buffer = IOMalloc(0x10000);
+    biosInfo->size = 0x10000;
 
     void* buffer = biosInfo->buffer;
     uint32_t size = biosInfo->size;
@@ -183,44 +267,47 @@ int AMD5000::readATOMBIOS(void *that) {
     bool success = false;
 
     // Try standard readers
-    if (readEfiRom(that, buffer, size)) {
+    // In ASM, these return non-zero on success.
+    if (readEfiRom(that, (uint8_t*)buffer, size)) {
         DBGLOG(AMD5K, "AMD5000Controller::readATOMBIOS(): Loaded BIOS from EFI ROM");
         success = true;
-    } else if (readVramRom(that, buffer, size)) {
+    } else if (readVramRom(that, (uint8_t*)buffer, size)) {
         DBGLOG(AMD5K, "AMD5000Controller::readATOMBIOS(): Loaded BIOS from VRAM ROM");
         success = true;
-    } else if (readPciRom(that, buffer, size)) {
+    } else if (readPciRom(that, (uint8_t*)buffer, size)) {
         DBGLOG(AMD5K, "AMD5000Controller::readATOMBIOS(): Loaded BIOS from PCI ROM");
         success = true;
-    } else if (readRegRom(that, buffer, size)) {
+    } else if (readRegRom(that, (uint8_t*)buffer, size)) {
         DBGLOG(AMD5K, "AMD5000Controller::readATOMBIOS(): Loaded BIOS from Registry ROM");
         success = true;
     }
 
-    // Fallback: Check for ATY,bin_image if standard readers failed
-    // This mimics the original driver behavior at loc_17943
-    if (!success) {
-        DBGLOG(AMD5K, "AMD5000Controller::readATOMBIOS(): Standard readers failed. Checking for ATY,bin_image fallback...");
+    // Fallback & Property Sync
+    IOService* provider = getMember<IOService*>(that, 0x160);
+    
+    if (provider) {
+        OSObject* prop = provider->getProperty("ATY,bin_image");
+        OSData* data = OSDynamicCast(OSData, prop);
         
-        // Use offset 0x190 to get the provider (IOPCIDevice)
-        IOService* provider = getMember<IOService*>(that, 0x190);
-        
-        if (provider) {
-            OSObject* prop = provider->getProperty("ATY,bin_image");
-            OSData* data = OSDynamicCast(OSData, prop);
-            
-            if (data && data->getLength() > 0) {
+        if (data && data->getLength() > 0) {
+            // If we haven't loaded successfully yet, use this data
+            if (!success) {
                 size_t copySize = (data->getLength() > size) ? size : data->getLength();
                 memcpy(buffer, data->getBytesNoCopy(), copySize);
-                
-                DBGLOG(AMD5K, "AMD5000Controller::readATOMBIOS(Fallback): Loaded BIOS from ATY,bin_image (Size: %lu)", copySize);
+                DBGLOG(AMD5K, "AMD5000Controller::readATOMBIOS(Fallback): Loaded BIOS from ATY,bin_image");
                 success = true;
-            } else {
-                DBGLOG(AMD5K, "AMD5000Controller::readATOMBIOS(Fallback): ATY,bin_image not found on provider.");
             }
-        } else {
-            DBGLOG(AMD5K, "AMD5000Controller::readATOMBIOS(Fallback): Provider at 0x190 is null.");
+        } else if (success) {
+            // If we HAVE loaded successfully, but property is missing, create it.
+            OSData* newData = OSData::withBytes(buffer, size);
+            if (newData) {
+                provider->setProperty("ATY,bin_image", newData);
+                newData->release();
+                DBGLOG(AMD5K, "AMD5000Controller::readATOMBIOS(): Created ATY,bin_image property on provider.");
+            }
         }
+    } else {
+        DBGLOG(AMD5K, "AMD5000Controller::readATOMBIOS(): Provider at 0x160 is null.");
     }
 
     // Failure handling
@@ -233,69 +320,56 @@ int AMD5000::readATOMBIOS(void *that) {
         }
         return kIOReturnNotFound; // 0xe00002c9
     }
-
-    // Success - Propagate property if needed
-    IOService* provider = getMember<IOService*>(that, 0x190);
-    if (provider && !provider->getProperty("ATY,bin_image")) {
-        OSData* data = OSData::withBytes(buffer, size);
-        if (data) {
-            provider->setProperty("ATY,bin_image", data);
-            data->release();
-            DBGLOG(AMD5K, "AMD5000Controller::readATOMBIOS(): Created ATY,bin_image property on provider.");
-        }
-    }
     
     return getBIOSInfo(that);
 }
 
 int AMD5000::getBIOSInfo(void *that) {
-    BiosContainer* biosInfo = getMember<BiosContainer*>(that, 0x530);
+    // Offset 0x418
+    BiosContainer* biosInfo = getMember<BiosContainer*>(that, 0x418);
     if (!biosInfo || !biosInfo->buffer) return kIOReturnNotFound;
 
     uint8_t* rom = (uint8_t*)biosInfo->buffer;
     
-    // Offset 0x649 is the version string buffer
-    char* versionBuf = (char*)((uintptr_t)that + 0x649);
+    // Offset 0x509 (r15 = r14 + 0x509)
+    char* versionBuf = (char*)((uintptr_t)that + 0x509);
     strncpy(versionBuf, "XXX-XXXXX-XXX", 0x20);
 
     // Header offset
     uint16_t headerOffset = rom[0x48] | (rom[0x49] << 8);
     
-    // Safety check
+    // Safety check (ASM 0x16006)
     if (headerOffset + 4 > 0xFFFF) return 0xe00002c7;
 
     uint32_t signature = *reinterpret_cast<uint32_t*>(rom + headerOffset + 4);
     
     if (signature == 0x4D4F5441) { // 'ATOM'
-        // Standard logic: Header + 0x6e
         uint8_t strOffset = rom[headerOffset + 0x6e];
 
-        // Some PC VBIOSes put the SKU string elsewhere.
         bool foundSku = false;
-        
-        // Quick scan in the first 512 bytes for "113-"
-        // Will be improved as more VBIOS SKU data is gathered
         for (int i = 0; i < 512; i++) {
             if (rom[i] == '1' && rom[i+1] == '1' && rom[i+2] == '3' && rom[i+3] == '-') {
                 strncpy(versionBuf, (char*)(rom + i), 0x20);
-                DBGLOG(AMD5K, "VBIOS SKU Found (Scan): %s", versionBuf);
                 foundSku = true;
                 break;
             }
         }
 
-        // If scan failed, use the standard offset (even if it's the long description)
         if (!foundSku && strOffset != 0) {
             strncpy(versionBuf, (char*)(rom + strOffset), 0x20);
-            DBGLOG(AMD5K, "VBIOS Version (Standard): %s", versionBuf);
+        }
+
+        uint8_t& flag = getMember<uint8_t>(that, 0x528);
+        
+        if (flag != 0) {
+            flag = 0;
+            DBGLOG(AMD5K, "AMD5000Controller::getBIOSInfo(): Flag 0x528 was set. Clearing and returning Error.");
+            return 0xe00002c7;
         }
         
-        // Always return success if we have a valid AtomBIOS
-        getMember<uint8_t>(that, 0x668) = 0;
         return kIOReturnSuccess;
     }
 
-    getMember<uint8_t>(that, 0x668) = 0;
     return 0xe00002c7;
 }
 
